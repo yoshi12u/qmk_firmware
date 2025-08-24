@@ -6,7 +6,7 @@
 
 // ---------- Custom keycodes ----------
 enum custom_keycodes {
-    TAB_BELOW = SAFE_RANGE,  // macOS: hold Control (+ temporary _ESC); iOS/Windows/Linux: momentary _EMACS
+    TAB_BELOW = SAFE_RANGE,  // macOS: hold Control (+ temporary _PLAIN_KEYS); iOS/Windows/Linux: momentary _EMACS
 
     // US emulation targets: keys that differ on JIS (punctuation & number-row symbols)
     US_MINS, US_EQL, US_LBRC, US_RBRC, US_BSLS,
@@ -30,8 +30,8 @@ enum custom_keycodes {
     OS_PGUP,  // mac/iOS: Alt+Up (approx page up), else KC_PGUP
     OS_PGDN,  // mac/iOS: Alt+Down (approx page down), else KC_PGDN
 
-    // Plain Escape (used on _ESC to avoid Ctrl+Esc when TAB_BELOW holds Ctrl)
-    ESC_PLAIN
+    // Plain keys (used on _PLAIN_KEYS to avoid Ctrl modifier when TAB_BELOW holds Ctrl)
+    ESC_PLAIN,
 };
 
 // ---------- Tap Dance IDs ----------
@@ -49,7 +49,7 @@ enum layers {
     _NUMBER,      // Layer 3: Numbers & symbols
     _FUNCTION,    // Layer 4: F1-F12
     _MODIFIER,    // Layer 5: OS-specific modifier while holding EISU
-    _ESC      // Layer 6: helper while TAB_BELOW is held on macOS (Enter -> plain Esc only)
+    _PLAIN_KEYS   // Layer 6: helper while TAB_BELOW is held on macOS
 };
 
 // Layer-taps for JP IME ergonomics
@@ -145,6 +145,29 @@ static void tap_us_or_jp(uint16_t kc_us, uint16_t kc_jp) {
     }
 }
 
+// Helper to send a plain key without Ctrl modifier
+static void send_plain_key(uint16_t keycode) {
+    // Save current modifier states
+    uint8_t mods      = get_mods();
+    uint8_t weak_mods = get_weak_mods();
+    uint8_t osm       = get_oneshot_mods();
+
+    // Temporarily remove Ctrl from all buckets
+    del_mods(MOD_MASK_CTRL);
+    del_weak_mods(MOD_MASK_CTRL);
+    del_oneshot_mods(MOD_MASK_CTRL);
+    send_keyboard_report();
+
+    // Send the plain key (no Ctrl)
+    tap_code(keycode);
+
+    // Restore previous modifier states
+    set_mods(mods);
+    set_weak_mods(weak_mods);
+    set_oneshot_mods(osm);
+    send_keyboard_report();
+}
+
 // ---------- Tap Dance actions ----------
 tap_dance_action_t tap_dance_actions[] = {
     [TD_Q_ESC] = ACTION_TAP_DANCE_DOUBLE(KC_Q, KC_ESC),
@@ -200,7 +223,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
                                    _______, _______, _______, _______, _______, _______, _______, _______
     ),
 
-    [_ESC] = LAYOUT(
+    [_PLAIN_KEYS] = LAYOUT(
         _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
         _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, ESC_PLAIN,
         _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
@@ -212,16 +235,16 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 // ---------- Key processing ----------
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     switch (keycode) {
-        // macOS: hold Control and turn on _ESC so bottom-right Enter acts as plain Esc while held
+        // macOS: hold Control and turn on _PLAIN_KEYS so bottom-right Enter acts as plain Esc and J acts as plain Enter while held
         // iOS/Windows/Linux: momentary _EMACS layer
         case TAB_BELOW:
             if (g_is_mac && !g_is_ios) {
                 if (record->event.pressed) {
                     register_mods(MOD_BIT(KC_LCTL));   // hold Ctrl on macOS
-                    layer_on(_ESC);                // enable helper layer (Enter -> plain Esc)
+                    layer_on(_PLAIN_KEYS);              // enable helper layer (Enter -> plain Esc, J -> plain Enter)
                 } else {
                     unregister_mods(MOD_BIT(KC_LCTL)); // release Ctrl
-                    layer_off(_ESC);               // disable helper layer
+                    layer_off(_PLAIN_KEYS);            // disable helper layer
                 }
             } else {
                 if (record->event.pressed) { layer_on(_EMACS); }
@@ -279,28 +302,10 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             if (record->event.pressed) do_os_pgdn();
             return false;
 
-        // ----- Plain Esc sender for _ESC -----
+        // ----- Plain key senders for _PLAIN_KEYS -----
         case ESC_PLAIN:
             if (record->event.pressed) {
-                // Save current modifier states
-                uint8_t mods      = get_mods();
-                uint8_t weak_mods = get_weak_mods();
-                uint8_t osm       = get_oneshot_mods();
-
-                // Temporarily remove Ctrl from all buckets
-                del_mods(MOD_MASK_CTRL);
-                del_weak_mods(MOD_MASK_CTRL);
-                del_oneshot_mods(MOD_MASK_CTRL);
-                send_keyboard_report();
-
-                // Send a plain Escape (no Ctrl)
-                tap_code(KC_ESC);
-
-                // Restore previous modifier states
-                set_mods(mods);
-                set_weak_mods(weak_mods);
-                set_oneshot_mods(osm);
-                send_keyboard_report();
+                send_plain_key(KC_ESC);
             }
             return false;
 
