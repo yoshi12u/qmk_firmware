@@ -67,7 +67,7 @@ enum layers {
 // Layer-taps for JP IME ergonomics
 #define KANA_L1 LT(_NAVIGATION, KC_LNG1)  // tap=Kana (LNG1), hold=Navigation
 #define EISU_LT LT(_MODIFIER, KC_LNG2)    // tap=Eisu (LNG2), hold=Modifier
-#define NUMBER MO(_NUMBER)                // momentary Number layer
+#define BSPC_LT LT(_NUMBER, KC_BSPC)      // tap=Backspace (BSPC), hold=Number layer
 #define FUNC LT(_FUNCTION, KC_SPC)        // tap=Function (F1-F12), hold=Space
 
 // ---------- Runtime state ----------
@@ -100,17 +100,15 @@ bool process_detected_host_os_user(os_variant_t os) {
 }
 
 // ---------- Helpers ----------
+// Forward declarations
+static inline void tap_with_mods(uint8_t mods_mask, uint16_t keycode);
 
 // Emacs-like kill to end of line: select to EOL then delete.
 // macOS/iOS: GUI+Shift+Right, then Delete
 // Windows/Linux: Shift+End, then Delete
 static void do_kill_eol(void) {
     if (g_is_mac) {
-        register_code(KC_LGUI);
-        register_code(KC_LSFT);
-        tap_code(KC_RGHT);
-        unregister_code(KC_LSFT);
-        unregister_code(KC_LGUI);
+        tap_with_mods(MOD_LGUI | MOD_LSFT, KC_RGHT);
         tap_code(KC_DEL);
     } else {
         tap_code16(S(KC_END));
@@ -121,28 +119,28 @@ static void do_kill_eol(void) {
 // OS-aware navigation helpers used on the Emacs layer
 static void do_os_home(void) {
     if (g_is_mac) {
-        register_code(KC_LGUI); tap_code(KC_LEFT); unregister_code(KC_LGUI); // Cmd+Left -> line start
+        tap_with_mods(MOD_LGUI, KC_LEFT); // Cmd+Left -> line start
     } else {
         tap_code(KC_HOME);
     }
 }
 static void do_os_end(void) {
     if (g_is_mac) {
-        register_code(KC_LGUI); tap_code(KC_RGHT); unregister_code(KC_LGUI); // Cmd+Right -> line end
+        tap_with_mods(MOD_LGUI, KC_RGHT); // Cmd+Right -> line end
     } else {
         tap_code(KC_END);
     }
 }
 static void do_os_pgup(void) {
     if (g_is_mac) {
-        register_code(KC_LALT); tap_code(KC_UP); unregister_code(KC_LALT);   // Alt+Up -> paragraph/page-ish up
+        tap_with_mods(MOD_LALT, KC_UP);   // Alt+Up -> paragraph/page-ish up
     } else {
         tap_code(KC_PGUP);
     }
 }
 static void do_os_pgdn(void) {
     if (g_is_mac) {
-        register_code(KC_LALT); tap_code(KC_DOWN); unregister_code(KC_LALT); // Alt+Down -> paragraph/page-ish down
+        tap_with_mods(MOD_LALT, KC_DOWN); // Alt+Down -> paragraph/page-ish down
     } else {
         tap_code(KC_PGDN);
     }
@@ -180,6 +178,13 @@ static void send_plain_key(uint16_t keycode) {
     send_keyboard_report();
 }
 
+// Generic helper: press mods, tap key, then release mods
+static inline void tap_with_mods(uint8_t mods_mask, uint16_t keycode) {
+    if (mods_mask) register_mods(mods_mask);
+    tap_code16(keycode);
+    if (mods_mask) unregister_mods(mods_mask);
+}
+
 // ---------- Tap Dance actions ----------
 tap_dance_action_t tap_dance_actions[] = {
     [TD_Q_ESC] = ACTION_TAP_DANCE_DOUBLE(KC_Q, KC_ESC),
@@ -192,14 +197,14 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         KC_TAB,  Q_ESC,   KC_W,    KC_E,    KC_R,    KC_T,    _______, _______, KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    US_MINS,
         TAB_BELOW, KC_A,  KC_S,    KC_D,    KC_F,    KC_G,    _______, _______, KC_H,    KC_J,    KC_K,    KC_L,    US_SCLN, US_QUOT,
         KC_LSFT, KC_Z,    KC_X,    KC_C,    KC_V,    KC_B,    _______, _______, KC_N,    KC_M,    US_COMM, US_DOT,  US_SLSH, KC_RSFT,
-                                   _______, KC_LALT, EISU_LT, NUMBER,  FUNC,    KANA_L1, LGUI_T(KC_ENT), _______
+                                   _______, KC_LALT, EISU_LT, BSPC_LT, FUNC,    KANA_L1, LGUI_T(KC_ENT), _______
     ),
 
     [_NAVIGATION] = LAYOUT(
         _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
         _______, _______, _______, _______, _______, _______, _______, KC_BTN4, KC_HOME, KC_PGDN, KC_PGUP, KC_END,  _______, _______,
         _______, APP_1,   APP_2,   APP_3,   APP_4,   APP_5,   _______, KC_BTN5, KC_LEFT, KC_DOWN, KC_UP,   KC_RGHT, _______, _______,
-        _______, _______, _______, _______, _______, _______, KC_BSPC, _______, _______, _______, US_LBRC, US_RBRC, _______, _______,
+        _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, US_LBRC, US_RBRC, _______, _______,
                                    _______, _______, _______, _______, _______, _______, _______, _______
     ),
 
@@ -319,16 +324,10 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             if (record->event.pressed) {
                 if (g_is_mac && !g_is_ios) {
                     // macOS: Ctrl+Opt+Cmd+Left (common in Rectangle/Magnet)
-                    register_code(KC_LCTL);
-                    register_code(KC_LALT);
-                    register_code(KC_LGUI);
-                    tap_code(KC_LEFT);
-                    unregister_code(KC_LGUI);
-                    unregister_code(KC_LALT);
-                    unregister_code(KC_LCTL);
+                    tap_with_mods(MOD_LCTL | MOD_LALT | MOD_LGUI, KC_LEFT);
                 } else {
                     // Windows/Linux: Win+Left
-                    tap_code16(LGUI(KC_LEFT));
+                    tap_with_mods(MOD_LGUI, KC_LEFT);
                 }
             }
             return false;
@@ -336,14 +335,10 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             if (record->event.pressed) {
                 if (g_is_mac && !g_is_ios) {
                     // macOS: Cmd+Ctrl+F (toggle fullscreen)
-                    register_code(KC_LGUI);
-                    register_code(KC_LCTL);
-                    tap_code(KC_F);
-                    unregister_code(KC_LCTL);
-                    unregister_code(KC_LGUI);
+                    tap_with_mods(MOD_LGUI | MOD_LCTL, KC_F);
                 } else {
                     // Windows/Linux: Win+Up (maximize)
-                    tap_code16(LGUI(KC_UP));
+                    tap_with_mods(MOD_LGUI, KC_UP);
                 }
             }
             return false;
@@ -351,16 +346,10 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             if (record->event.pressed) {
                 if (g_is_mac && !g_is_ios) {
                     // macOS: Ctrl+Opt+Cmd+Right (common in Rectangle/Magnet)
-                    register_code(KC_LCTL);
-                    register_code(KC_LALT);
-                    register_code(KC_LGUI);
-                    tap_code(KC_RGHT);
-                    unregister_code(KC_LGUI);
-                    unregister_code(KC_LALT);
-                    unregister_code(KC_LCTL);
+                    tap_with_mods(MOD_LCTL | MOD_LALT | MOD_LGUI, KC_RGHT);
                 } else {
                     // Windows/Linux: Win+Right
-                    tap_code16(LGUI(KC_RGHT));
+                    tap_with_mods(MOD_LGUI, KC_RGHT);
                 }
             }
             return false;
