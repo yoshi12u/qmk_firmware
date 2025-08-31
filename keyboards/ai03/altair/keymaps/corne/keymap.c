@@ -32,6 +32,11 @@ enum custom_keycodes {
 
     // Plain keys (used on _PLAIN_KEYS to avoid Ctrl modifier when TAB_BELOW holds Ctrl)
     ESC_PLAIN,
+
+    // Window management
+    WM_LEFT,   // Snap/Tile Left
+    WM_MAX,    // Maximize/Fullscreen
+    WM_RGHT,   // Snap/Tile Right
 };
 
 // ---------- Tap Dance IDs ----------
@@ -40,6 +45,13 @@ enum {
 };
 
 #define Q_ESC TD(TD_Q_ESC) // Tap Dance: Q -> Esc (double-tap Esc)
+
+// ---------- App shortcuts  ----------
+#define APP_1 LCA(KC_A)
+#define APP_2 LCA(KC_S)
+#define APP_3 LCA(KC_D)
+#define APP_4 LCA(KC_F)
+#define APP_5 LCA(KC_G)
 
 // ---------- Layers ----------
 enum layers {
@@ -180,13 +192,13 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         KC_TAB,  Q_ESC,   KC_W,    KC_E,    KC_R,    KC_T,    _______, _______, KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    US_MINS,
         TAB_BELOW, KC_A,  KC_S,    KC_D,    KC_F,    KC_G,    _______, _______, KC_H,    KC_J,    KC_K,    KC_L,    US_SCLN, US_QUOT,
         KC_LSFT, KC_Z,    KC_X,    KC_C,    KC_V,    KC_B,    _______, _______, KC_N,    KC_M,    US_COMM, US_DOT,  US_SLSH, KC_RSFT,
-                                   _______, KC_LALT, EISU_LT, NUMBER,  FUNC,    KANA_L1, KC_ENT,  _______
+                                   _______, KC_LALT, EISU_LT, NUMBER,  FUNC,    KANA_L1, LGUI_T(KC_ENT), _______
     ),
 
     [_NAVIGATION] = LAYOUT(
         _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
         _______, _______, _______, _______, _______, _______, _______, KC_BTN4, KC_HOME, KC_PGDN, KC_PGUP, KC_END,  _______, _______,
-        _______, _______, _______, _______, _______, _______, _______, KC_BTN5, KC_LEFT, KC_DOWN, KC_UP,   KC_RGHT, _______, _______,
+        _______, APP_1,   APP_2,   APP_3,   APP_4,   APP_5,   _______, KC_BTN5, KC_LEFT, KC_DOWN, KC_UP,   KC_RGHT, _______, _______,
         _______, _______, _______, _______, _______, _______, KC_BSPC, _______, _______, _______, US_LBRC, US_RBRC, _______, _______,
                                    _______, _______, _______, _______, _______, _______, _______, _______
     ),
@@ -210,7 +222,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     [_FUNCTION] = LAYOUT(
         _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
         QK_BOOT, KC_F1,   KC_F2,   KC_F3,   KC_F4,   KC_F5,   KC_F6,   KC_F7,   KC_F8,   KC_F9,   KC_F10,  KC_F11,  KC_F12,  _______,
-        _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
+        _______, _______, WM_LEFT, WM_MAX,  WM_RGHT, _______, _______, _______, _______, _______, _______, _______, _______, _______,
         _______, MAC,     IOS,     WIN_US,  WIN_JIS, _______, _______, _______, _______, _______, _______, _______, _______, _______,
                                    _______, _______, _______, _______, _______, _______, _______, _______
     ),
@@ -300,6 +312,57 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             return false;
         case OS_PGDN:
             if (record->event.pressed) do_os_pgdn();
+            return false;
+
+        // ----- Window management  -----
+        case WM_LEFT:
+            if (record->event.pressed) {
+                if (g_is_mac && !g_is_ios) {
+                    // macOS: Ctrl+Opt+Cmd+Left (common in Rectangle/Magnet)
+                    register_code(KC_LCTL);
+                    register_code(KC_LALT);
+                    register_code(KC_LGUI);
+                    tap_code(KC_LEFT);
+                    unregister_code(KC_LGUI);
+                    unregister_code(KC_LALT);
+                    unregister_code(KC_LCTL);
+                } else {
+                    // Windows/Linux: Win+Left
+                    tap_code16(LGUI(KC_LEFT));
+                }
+            }
+            return false;
+        case WM_MAX:
+            if (record->event.pressed) {
+                if (g_is_mac && !g_is_ios) {
+                    // macOS: Cmd+Ctrl+F (toggle fullscreen)
+                    register_code(KC_LGUI);
+                    register_code(KC_LCTL);
+                    tap_code(KC_F);
+                    unregister_code(KC_LCTL);
+                    unregister_code(KC_LGUI);
+                } else {
+                    // Windows/Linux: Win+Up (maximize)
+                    tap_code16(LGUI(KC_UP));
+                }
+            }
+            return false;
+        case WM_RGHT:
+            if (record->event.pressed) {
+                if (g_is_mac && !g_is_ios) {
+                    // macOS: Ctrl+Opt+Cmd+Right (common in Rectangle/Magnet)
+                    register_code(KC_LCTL);
+                    register_code(KC_LALT);
+                    register_code(KC_LGUI);
+                    tap_code(KC_RGHT);
+                    unregister_code(KC_LGUI);
+                    unregister_code(KC_LALT);
+                    unregister_code(KC_LCTL);
+                } else {
+                    // Windows/Linux: Win+Right
+                    tap_code16(LGUI(KC_RGHT));
+                }
+            }
             return false;
 
         // ----- Plain key senders for _PLAIN_KEYS -----
